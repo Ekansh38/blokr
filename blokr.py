@@ -93,9 +93,8 @@ def main():
             remaining = end_time - time.time()
             if remaining <= 0:
                 break
-            mins_left = int(remaining // 60)
-            secs_left = int(remaining % 60)
-            print(f"  Time remaining: {mins_left}m {secs_left}s")
+            mins_left = -(-int(remaining) // 60)  # ceiling division
+            print(f"  {mins_left} min remaining")
             time.sleep(60)
     except KeyboardInterrupt:
         print("\nInterrupted — unblocking...")
