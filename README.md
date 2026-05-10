@@ -8,7 +8,7 @@ Brick your laptop. Block distracting sites behind a physical code you keep on pa
 
 ```bash
 git clone https://github.com/ekansh38/blokr.git
-echo 'alias blokr="python3 /path/to/blokr/blokr.py"' >> ~/.zshrc
+echo 'alias blokr="noglob python3 /path/to/blokr/blokr.py"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
