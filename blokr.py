@@ -350,16 +350,32 @@ def is_locked():
         return MARKER_START in f.read()
 
 
-def cmd_watch(url, quality=None):
+QUALITY_OPTIONS = ["best", "1080", "720", "480"]
+
+
+def prompt_quality():
+    print("\n  Select quality:")
+    for i, q in enumerate(QUALITY_OPTIONS, 1):
+        label = f"{q}p" if q != "best" else "best (highest available)"
+        print(f"    {i}) {label}")
+    while True:
+        choice = input("\n  Choice [1]: ").strip() or "1"
+        if choice.isdigit() and 1 <= int(choice) <= len(QUALITY_OPTIONS):
+            return QUALITY_OPTIONS[int(choice) - 1]
+        print("  Invalid choice, try again.")
+
+
+def cmd_watch(url):
     if not url:
-        print("\n  Usage: blokr watch <url> [quality]\n")
-        print("  quality: 480, 720, 1080, 1440, 2160, or best (default: best)\n")
+        print("\n  Usage: blokr watch <url>\n")
         sys.exit(1)
+
+    quality = prompt_quality()
 
     out_dir = os.path.expanduser("~/Downloads/blokr-watch")
     os.makedirs(out_dir, exist_ok=True)
 
-    if quality and quality != "best":
+    if quality != "best":
         fmt = f"bestvideo[height<={quality}][ext=mp4]+bestaudio[ext=m4a]/best[height<={quality}][ext=mp4]/best[height<={quality}]"
     else:
         fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
@@ -369,7 +385,7 @@ def cmd_watch(url, quality=None):
         print("\n  Temporarily unblocking to download...")
         unblock()
 
-    q_label = f"{quality}p" if quality and quality != "best" else "best"
+    q_label = f"{quality}p" if quality != "best" else "best"
     print(f"\n  Downloading ({q_label}): {url}")
     print(f"  Saving to:   {out_dir}\n")
 
@@ -440,7 +456,7 @@ HELP = """
     setup          first-time setup, pick sites, get your code (shown once)
     block          block your configured sites
     unblock        unblock (requires your paper code)
-    watch <url> [quality]  download a video (quality: 480/720/1080/1440/2160/best)
+    watch <url>    download a video (prompts for quality)
     yt             open the YouTube frontend in your browser
     clean          delete all downloaded videos
     status         show current state
@@ -474,10 +490,7 @@ def main():
     elif cmd == "unblock":
         cmd_unblock()
     elif cmd == "watch":
-        cmd_watch(
-            sys.argv[2] if len(sys.argv) > 2 else None,
-            sys.argv[3] if len(sys.argv) > 3 else None,
-        )
+        cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "yt":
         cmd_yt()
     elif cmd == "clean":
