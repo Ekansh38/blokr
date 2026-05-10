@@ -401,6 +401,19 @@ def main():
         cmd_unlock()
     elif cmd == "watch":
         cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif cmd in ("help", "--help", "-h"):
+        print("""
+  blokr - brick your laptop
+
+  commands:
+    setup          first-time setup, pick sites, get your code (shown once)
+    lock           block your configured sites
+    unlock         unblock (requires your paper code)
+    watch <url>    download a youtube video and open it locally
+
+  lost your paper? run setup again. it wipes and regenerates.
+  find work videos at: https://inv.thepixora.com
+""")
     else:
         print(f"\n  Unknown command: {cmd}\n")
         sys.exit(1)
