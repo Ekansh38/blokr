@@ -431,7 +431,7 @@ HELP = """
 """
 
 
-SUDO_COMMANDS = {"block", "unblock"}
+SUDO_COMMANDS = {"block", "unblock", "watch"}
 
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
