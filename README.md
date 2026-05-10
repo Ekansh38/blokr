@@ -7,7 +7,7 @@ Brick your laptop. Block distracting sites behind a physical code you keep on pa
 **1. Clone and add the alias:**
 
 ```bash
-git clone https://github.com/yourusername/blokr.git
+git clone https://github.com/ekansh38/blokr.git
 echo 'alias blokr="sudo python3 /path/to/blokr/blokr.py"' >> ~/.zshrc
 source ~/.zshrc
 ```
