@@ -56,9 +56,9 @@ Opens [Invidious](https://inv.thepixora.com) — a YouTube frontend on a differe
 
 ### Watch a video (work use)
 ```bash
-blokr watch <youtube-url>
+blokr watch <youtube-url> [quality]
 ```
-Downloads the video at best quality via `yt-dlp` and opens it locally. No algorithm, no autoplay, no sidebar.
+Downloads the video via `yt-dlp` and opens it locally. No algorithm, no autoplay, no sidebar. Optional quality: `480`, `720`, `1080`, `1440`, `2160`, or `best` (default).
 
 ### Clean up downloads
 ```bash
