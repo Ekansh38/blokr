@@ -31,9 +31,9 @@ blokr setup
 
 ## Usage
 
-### Lock
+### Block
 ```bash
-blokr lock
+blokr block
 ```
 Blocks your configured sites via `/etc/hosts`. No timer, stays locked until you unlock.
 
@@ -48,13 +48,17 @@ blokr unlock
 4. Type `YES SIR YES` to really confirm
 5. Unblocked
 
+### Open YouTube frontend
+```bash
+blokr yt
+```
+Opens [Invidious](https://inv.thepixora.com) — a YouTube frontend on a different domain, not blocked — in your browser. Use it to find a video, copy the URL, then run `blokr watch`.
+
 ### Watch a video (work use)
 ```bash
 blokr watch <youtube-url>
 ```
 Downloads the video at best quality via `yt-dlp` and opens it locally. No algorithm, no autoplay, no sidebar.
-
-To find work videos while locked: browse [Invidious](https://inv.thepixora.com) (a YouTube frontend on a different domain, not blocked), copy the URL, then run `blokr watch`.
 
 ### Status
 ```bash

@@ -250,10 +250,10 @@ def cmd_setup():
     print("=" * 62 + "\n")
 
     input("  Press Enter once you've written it down...")
-    print("\n  Setup complete. Run 'blokr lock' to brick yourself.\n")
+    print("\n  Setup complete. Run 'blokr block' to brick yourself.\n")
 
 
-def cmd_lock():
+def cmd_block():
     if not os.path.exists(HASH_FILE):
         print("\n  Run 'blokr setup' first.\n")
         sys.exit(1)
@@ -265,6 +265,10 @@ def cmd_lock():
 
     block(sites)
     print(f"\n  Locked. {len(sites)} domains blocked. Go do something real.\n")
+
+
+def cmd_yt():
+    subprocess.run(["open", "https://inv.thepixora.com"])
 
 
 def cmd_unlock():
@@ -399,52 +403,47 @@ def cmd_status():
     print()
 
 
-# ── entrypoint ────────────────────────────────────────────────────────────────
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("""
+HELP = """
   blokr - brick your laptop
 
   commands:
     setup          first-time setup, pick sites, get your code (shown once)
-    lock           block your configured sites
+    block          block your configured sites
     unlock         unblock (requires your paper code)
     watch <url>    download a youtube video and open it locally
+    yt             open the YouTube frontend in your browser
     status         show current state
     help           show this message
 
   lost your paper? run setup again. it wipes and regenerates.
   find work videos at: https://inv.thepixora.com
-""")
+"""
+
+
+# ── entrypoint ────────────────────────────────────────────────────────────────
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(HELP)
         sys.exit(0)
 
     cmd = sys.argv[1]
 
     if cmd == "setup":
         cmd_setup()
-    elif cmd == "lock":
-        cmd_lock()
+    elif cmd == "block":
+        cmd_block()
     elif cmd == "unlock":
         cmd_unlock()
     elif cmd == "watch":
         cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif cmd == "yt":
+        cmd_yt()
     elif cmd == "status":
         cmd_status()
     elif cmd in ("help", "--help", "-h"):
-        print("""
-  blokr - brick your laptop
-
-  commands:
-    setup          first-time setup, pick sites, get your code (shown once)
-    lock           block your configured sites
-    unlock         unblock (requires your paper code)
-    watch <url>    download a youtube video and open it locally
-
-  lost your paper? run setup again. it wipes and regenerates.
-  find work videos at: https://inv.thepixora.com
-""")
+        print(HELP)
     else:
         print(f"\n  Unknown command: {cmd}\n")
         sys.exit(1)
