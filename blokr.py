@@ -366,22 +366,23 @@ def cmd_watch(url):
     print(f"\n  Downloading: {url}")
     print(f"  Saving to:   {out_dir}\n")
 
-    result = subprocess.run(
-        [
-            "yt-dlp",
-            "-f",
-            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "--merge-output-format",
-            "mp4",
-            "-o",
-            os.path.join(out_dir, "%(title)s.%(ext)s"),
-            url,
-        ]
-    )
-
-    if was_locked:
-        block(load_sites())
-        print("\n  Re-blocked.")
+    try:
+        result = subprocess.run(
+            [
+                "yt-dlp",
+                "-f",
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "--merge-output-format",
+                "mp4",
+                "-o",
+                os.path.join(out_dir, "%(title)s.%(ext)s"),
+                url,
+            ]
+        )
+    finally:
+        if was_locked:
+            block(load_sites())
+            print("\n  Re-blocked.")
 
     if result.returncode != 0:
         print("\n  Download failed.\n")
