@@ -345,6 +345,11 @@ def cmd_unblock():
     print("\n  Unblocked. Make it count.\n")
 
 
+def is_locked():
+    with open(HOSTS_FILE) as f:
+        return MARKER_START in f.read()
+
+
 def cmd_watch(url):
     if not url:
         print("\n  Usage: blokr watch <url>\n")
@@ -352,6 +357,11 @@ def cmd_watch(url):
 
     out_dir = os.path.expanduser("~/Downloads/blokr-watch")
     os.makedirs(out_dir, exist_ok=True)
+
+    was_locked = is_locked()
+    if was_locked:
+        print("\n  Temporarily unblocking to download...")
+        unblock()
 
     print(f"\n  Downloading: {url}")
     print(f"  Saving to:   {out_dir}\n")
@@ -368,6 +378,10 @@ def cmd_watch(url):
             url,
         ]
     )
+
+    if was_locked:
+        block(load_sites())
+        print("\n  Re-blocked.")
 
     if result.returncode != 0:
         print("\n  Download failed.\n")
@@ -389,10 +403,7 @@ def cmd_watch(url):
 
 def cmd_status():
     setup_done = os.path.exists(HASH_FILE)
-    locked = False
-    if setup_done:
-        with open(HOSTS_FILE) as f:
-            locked = MARKER_START in f.read()
+    locked = is_locked() if setup_done else False
     sites = load_sites() if setup_done else []
 
     print()
