@@ -383,13 +383,42 @@ def cmd_watch(url):
         subprocess.run(["open", files[0]])
 
 
+def cmd_status():
+    setup_done = os.path.exists(HASH_FILE)
+    locked = False
+    if setup_done:
+        with open(HOSTS_FILE) as f:
+            locked = MARKER_START in f.read()
+    sites = load_sites() if setup_done else []
+
+    print()
+    print(f"  setup:   {'yes' if setup_done else 'no -- run blokr setup'}")
+    if setup_done:
+        print(f"  locked:  {'yes' if locked else 'no'}")
+        print(f"  blocking {len(sites)} domains: {', '.join(sites[:3])}{'...' if len(sites) > 3 else ''}")
+    print()
+
+
 # ── entrypoint ────────────────────────────────────────────────────────────────
 
 
 def main():
     if len(sys.argv) < 2:
-        print("\nUsage: blokr <setup|lock|unlock|watch <url>>\n")
-        sys.exit(1)
+        print("""
+  blokr - brick your laptop
+
+  commands:
+    setup          first-time setup, pick sites, get your code (shown once)
+    lock           block your configured sites
+    unlock         unblock (requires your paper code)
+    watch <url>    download a youtube video and open it locally
+    status         show current state
+    help           show this message
+
+  lost your paper? run setup again. it wipes and regenerates.
+  find work videos at: https://inv.thepixora.com
+""")
+        sys.exit(0)
 
     cmd = sys.argv[1]
 
@@ -401,6 +430,8 @@ def main():
         cmd_unlock()
     elif cmd == "watch":
         cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
+    elif cmd == "status":
+        cmd_status()
     elif cmd in ("help", "--help", "-h"):
         print("""
   blokr - brick your laptop
