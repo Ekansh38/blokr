@@ -1,40 +1,152 @@
 #!/usr/bin/env python3
-import time
+import os
 import sys
+import time
+import hashlib
+import secrets
+import string
+import termios
+import tty
+import select
+import json
+import subprocess
 
+CONFIG_DIR = os.path.expanduser("~/.blokr")
+HASH_FILE = os.path.join(CONFIG_DIR, ".hash")
+SITES_FILE = os.path.join(CONFIG_DIR, ".sites")
 HOSTS_FILE = "/etc/hosts"
-REDIRECT = "127.0.0.1"
 MARKER_START = "# blokr-start"
 MARKER_END = "# blokr-end"
 
-SITES = {
-    "youtube": [
-        "www.youtube.com",
+CODE_LENGTH = 40
+CODE_CHARS = string.ascii_letters + string.digits
+PASTE_THRESHOLD = 0.05  # seconds — paste arrives near-instantly, humans are ~150ms+
+
+PRESET_SITES = {
+    "YouTube": [
         "youtube.com",
+        "www.youtube.com",
         "m.youtube.com",
         "youtu.be",
+        "youtubei.googleapis.com",
+        "yt3.ggpht.com",
     ],
-    "ai": [
+    "AI (Claude, ChatGPT, Gemini)": [
         "claude.ai",
         "chatgpt.com",
         "chat.openai.com",
         "gemini.google.com",
     ],
+    "TikTok": [
+        "tiktok.com",
+        "www.tiktok.com",
+        "vm.tiktok.com",
+    ],
 }
+
+SHAME = """\
+  YouTube's algorithm is engineered to maximize watch time, not your wellbeing.
+  Every recommendation exists to pull you into the next video — not to help you
+  learn or rest. Studies consistently link passive video consumption with reduced
+  attention span, lower motivation, and higher anxiety. The 10 minutes you think
+  you're taking costs you 45. You have real things to build. You went and found
+  a piece of paper and typed 40 characters because some part of you knows that.
+  Don't waste it.\
+"""
+
+
+# ── terminal helpers ──────────────────────────────────────────────────────────
+
+
+def flush_stdin(fd):
+    """Drain any buffered input (e.g. leftover paste chars)."""
+    while select.select([sys.stdin], [], [], 0)[0]:
+        os.read(fd, 4096)
+
+
+def read_no_paste(prompt, mask=False):
+    """
+    Read a line char-by-char in raw terminal mode.
+    Paste detection: if two consecutive chars arrive < PASTE_THRESHOLD apart,
+    clear the buffer, warn, and force retype.
+    mask=True shows * instead of the actual character.
+    Raises KeyboardInterrupt on Ctrl+C.
+    """
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+
+    result = []
+    last_time = None
+
+    try:
+        tty.setraw(fd)
+        while True:
+            raw = os.read(fd, 1)
+            now = time.time()
+            ch = raw.decode("utf-8", errors="replace")
+
+            if ch == "\x03":  # Ctrl+C
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                raise KeyboardInterrupt
+
+            if ch in ("\r", "\n"):
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                break
+
+            if ch in ("\x7f", "\x08"):  # backspace
+                if result:
+                    result.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                last_time = now
+                continue
+
+            # paste detection
+            if last_time is not None and (now - last_time) < PASTE_THRESHOLD:
+                flush_stdin(fd)
+                result = []
+                last_time = None
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                sys.stdout.write("\n  [!] Paste detected. Type it manually.\n\n")
+                sys.stdout.write(prompt)
+                sys.stdout.flush()
+                tty.setraw(fd)
+                continue
+
+            result.append(ch)
+            sys.stdout.write("*" if mask else ch)
+            sys.stdout.flush()
+            last_time = now
+
+    except KeyboardInterrupt:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        raise
+    except Exception:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        raise
+
+    return "".join(result)
+
+
+# ── hosts file ────────────────────────────────────────────────────────────────
 
 
 def block(domains):
     with open(HOSTS_FILE, "a") as f:
         f.write(f"\n{MARKER_START}\n")
-        for domain in domains:
-            f.write(f"{REDIRECT} {domain}\n")
+        for d in domains:
+            f.write(f"127.0.0.1 {d}\n")
         f.write(f"{MARKER_END}\n")
 
 
 def unblock():
     with open(HOSTS_FILE, "r") as f:
         lines = f.readlines()
-
     new_lines = []
     inside = False
     for line in lines:
@@ -46,61 +158,252 @@ def unblock():
             continue
         if not inside:
             new_lines.append(line)
-
     with open(HOSTS_FILE, "w") as f:
         f.writelines(new_lines)
 
 
-def main():
-    print("=== blokr ===\n")
+# ── config ────────────────────────────────────────────────────────────────────
 
-    # Time input
+
+def save_hash(code):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(HASH_FILE, "w") as f:
+        f.write(hashlib.sha256(code.encode()).hexdigest())
+
+
+def load_hash():
+    if not os.path.exists(HASH_FILE):
+        return None
+    with open(HASH_FILE) as f:
+        return f.read().strip()
+
+
+def check_code(code):
+    return hashlib.sha256(code.encode()).hexdigest() == load_hash()
+
+
+def save_sites(domains):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(SITES_FILE, "w") as f:
+        json.dump(domains, f)
+
+
+def load_sites():
+    if not os.path.exists(SITES_FILE):
+        return []
+    with open(SITES_FILE) as f:
+        return json.load(f)
+
+
+# ── commands ──────────────────────────────────────────────────────────────────
+
+
+def cmd_setup():
+    print("\n=== blokr setup ===\n")
+
+    if os.path.exists(HASH_FILE):
+        print("  Existing setup found. This will wipe it and generate a new code.")
+        print("  (If currently locked, it will also unblock.)\n")
+        ans = input("  Continue? (yes/no): ").strip().lower()
+        if ans != "yes":
+            print("  Cancelled.\n")
+            return
+        unblock()
+        if os.path.exists(HASH_FILE):
+            os.remove(HASH_FILE)
+        if os.path.exists(SITES_FILE):
+            os.remove(SITES_FILE)
+
+    print("\n  What do you want to block? (y/n for each)\n")
+    domains = []
+
+    for label, sites in PRESET_SITES.items():
+        ans = input(f"  Block {label}? (y/n): ").strip().lower()
+        if ans == "y":
+            domains.extend(sites)
+
+    print("\n  Add custom domains? (one per line, blank to finish)")
+    while True:
+        d = input("  Domain: ").strip().lower()
+        if not d:
+            break
+        domains.append(d)
+        if not d.startswith("www."):
+            domains.append("www." + d)
+
+    if not domains:
+        print("\n  No sites selected. Nothing to block.\n")
+        return
+
+    save_sites(list(dict.fromkeys(domains)))  # dedupe, preserve order
+
+    code = "".join(secrets.choice(CODE_CHARS) for _ in range(CODE_LENGTH))
+    save_hash(code)
+
+    print("\n" + "=" * 62)
+    print("  YOUR CODE — write this down NOW:")
+    print()
+    print(f"    {code}")
+    print()
+    print("  Put it somewhere physically inconvenient (bag, wallet, etc).")
+    print("  It will NOT be shown again. Ever.")
+    print("=" * 62 + "\n")
+
+    input("  Press Enter once you've written it down...")
+    print("\n  Setup complete. Run 'blokr lock' to brick yourself.\n")
+
+
+def cmd_lock():
+    if not os.path.exists(HASH_FILE):
+        print("\n  Run 'blokr setup' first.\n")
+        sys.exit(1)
+
+    sites = load_sites()
+    if not sites:
+        print("\n  No sites configured. Run 'blokr setup'.\n")
+        sys.exit(1)
+
+    block(sites)
+    print(f"\n  Locked. {len(sites)} domains blocked. Go do something real.\n")
+
+
+def cmd_unlock():
+    stored = load_hash()
+    if not stored:
+        print("\n  Not set up. Run 'blokr setup'.\n")
+        sys.exit(1)
+
+    print("\n=== blokr unlock ===\n")
+
+    # Step 1: code
     try:
-        hours = int(input("Hours (0 if none): ").strip() or "0")
-        minutes = int(input("Minutes (0 if none): ").strip() or "0")
-    except ValueError:
-        print("Invalid input.")
+        code = read_no_paste("  Enter code: ", mask=True)
+    except KeyboardInterrupt:
+        print("\n  Cancelled.\n")
+        sys.exit(0)
+
+    if not check_code(code):
+        print("\n  Wrong code.\n")
         sys.exit(1)
 
-    total_minutes = hours * 60 + minutes
-    if total_minutes <= 0:
-        print("Enter a time greater than 0.")
-        sys.exit(1)
+    print("\n  Code accepted.\n")
+    print("─" * 62)
+    print()
+    print(SHAME)
+    print()
+    print("─" * 62)
+    print()
 
-    # Site selection
-    print("\nWhat to block?")
-    print("  1) YouTube")
-    print("  2) AI (Claude, ChatGPT, Gemini)")
-    print("  3) Both")
-    choice = input("\nChoice (1/2/3): ").strip()
-
-    if choice == "1":
-        domains = SITES["youtube"]
-    elif choice == "2":
-        domains = SITES["ai"]
-    elif choice == "3":
-        domains = SITES["youtube"] + SITES["ai"]
-    else:
-        print("Invalid choice.")
-        sys.exit(1)
-
-    print(f"\nBlocking for {hours}h {minutes}m... (requires sudo)")
-    block(domains)
-
-    end_time = time.time() + total_minutes * 60
+    # Step 2: 5-minute countdown (Ctrl+C = cancelled)
     try:
+        end = time.time() + 5 * 60
         while True:
-            remaining = end_time - time.time()
+            remaining = end - time.time()
             if remaining <= 0:
                 break
-            mins_left = -(-int(remaining) // 60)  # ceiling division
-            print(f"  {mins_left} min remaining")
-            time.sleep(60)
+            m = int(remaining // 60)
+            s = int(remaining % 60)
+            sys.stdout.write(f"\r  Unblocking in {m}:{s:02d}... (Ctrl+C to cancel)")
+            sys.stdout.flush()
+            time.sleep(1)
+        print("\r" + " " * 50)
     except KeyboardInterrupt:
-        print("\nInterrupted — unblocking...")
+        print("\n\n  Cancelled. Still locked.\n")
+        sys.exit(0)
+
+    print()
+
+    # Step 3: first confirm
+    try:
+        ans1 = read_no_paste("  Unblock? (yes/no): ")
+    except KeyboardInterrupt:
+        print("\n  Cancelled. Still locked.\n")
+        sys.exit(0)
+
+    if ans1.strip().lower() != "yes":
+        print("\n  Still locked.\n")
+        sys.exit(0)
+
+    print()
+
+    # Step 4: second confirm
+    try:
+        ans2 = read_no_paste("  Are you really sure? Type: YES SIR YES\n  > ")
+    except KeyboardInterrupt:
+        print("\n  Cancelled. Still locked.\n")
+        sys.exit(0)
+
+    if ans2.strip() != "YES SIR YES":
+        print("\n  Nope. Still locked.\n")
+        sys.exit(0)
 
     unblock()
-    print("Done. Sites unblocked.")
+    print("\n  Unblocked. Make it count.\n")
+
+
+def cmd_watch(url):
+    if not url:
+        print("\n  Usage: blokr watch <url>\n")
+        sys.exit(1)
+
+    out_dir = os.path.expanduser("~/Downloads/blokr-watch")
+    os.makedirs(out_dir, exist_ok=True)
+
+    print(f"\n  Downloading: {url}")
+    print(f"  Saving to:   {out_dir}\n")
+
+    result = subprocess.run(
+        [
+            "yt-dlp",
+            "-f",
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--merge-output-format",
+            "mp4",
+            "-o",
+            os.path.join(out_dir, "%(title)s.%(ext)s"),
+            url,
+        ]
+    )
+
+    if result.returncode != 0:
+        print("\n  Download failed.\n")
+        sys.exit(1)
+
+    # open most recently modified file in the folder
+    files = sorted(
+        [
+            os.path.join(out_dir, f)
+            for f in os.listdir(out_dir)
+            if not f.startswith(".")
+        ],
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    if files:
+        subprocess.run(["open", files[0]])
+
+
+# ── entrypoint ────────────────────────────────────────────────────────────────
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("\nUsage: blokr <setup|lock|unlock|watch <url>>\n")
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "setup":
+        cmd_setup()
+    elif cmd == "lock":
+        cmd_lock()
+    elif cmd == "unlock":
+        cmd_unlock()
+    elif cmd == "watch":
+        cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
+    else:
+        print(f"\n  Unknown command: {cmd}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
