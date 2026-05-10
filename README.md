@@ -56,6 +56,12 @@ Downloads the video at best quality via `yt-dlp` and opens it locally. No algori
 
 To find work videos while locked: browse [Invidious](https://inv.thepixora.com) (a YouTube frontend on a different domain, not blocked), copy the URL, then run `blokr watch`.
 
+### Status
+```bash
+blokr status
+```
+Shows whether blokr is set up, currently locked, and which domains are being blocked.
+
 ### Reset / lost your paper
 ```bash
 blokr setup
