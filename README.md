@@ -60,6 +60,12 @@ blokr watch <youtube-url>
 ```
 Downloads the video at best quality via `yt-dlp` and opens it locally. No algorithm, no autoplay, no sidebar.
 
+### Clean up downloads
+```bash
+blokr clean
+```
+Deletes all videos in `~/Downloads/blokr-watch`. Run this after you're done watching.
+
 ### Status
 ```bash
 blokr status

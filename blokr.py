@@ -401,6 +401,20 @@ def cmd_watch(url):
         subprocess.run(["open", files[0]])
 
 
+def cmd_clean():
+    out_dir = os.path.expanduser("~/Downloads/blokr-watch")
+    if not os.path.exists(out_dir):
+        print("\n  Nothing to delete.\n")
+        return
+    files = [f for f in os.listdir(out_dir) if not f.startswith(".")]
+    if not files:
+        print("\n  Nothing to delete.\n")
+        return
+    for f in files:
+        os.remove(os.path.join(out_dir, f))
+    print(f"\n  Deleted {len(files)} file(s) from {out_dir}\n")
+
+
 def cmd_status():
     setup_done = os.path.exists(HASH_FILE)
     locked = is_locked() if setup_done else False
@@ -423,6 +437,7 @@ HELP = """
     unblock        unblock (requires your paper code)
     watch <url>    download a youtube video and open it locally
     yt             open the YouTube frontend in your browser
+    clean          delete all downloaded videos
     status         show current state
     help           show this message
 
@@ -457,6 +472,8 @@ def main():
         cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "yt":
         cmd_yt()
+    elif cmd == "clean":
+        cmd_clean()
     elif cmd == "status":
         cmd_status()
     elif cmd in ("help", "--help", "-h"):
