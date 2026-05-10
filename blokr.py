@@ -271,13 +271,13 @@ def cmd_yt():
     subprocess.run(["open", "https://inv.thepixora.com"])
 
 
-def cmd_unlock():
+def cmd_unblock():
     stored = load_hash()
     if not stored:
         print("\n  Not set up. Run 'blokr setup'.\n")
         sys.exit(1)
 
-    print("\n=== blokr unlock ===\n")
+    print("\n=== blokr unblock ===\n")
 
     # Step 1: code
     try:
@@ -409,7 +409,7 @@ HELP = """
   commands:
     setup          first-time setup, pick sites, get your code (shown once)
     block          block your configured sites
-    unlock         unblock (requires your paper code)
+    unblock        unblock (requires your paper code)
     watch <url>    download a youtube video and open it locally
     yt             open the YouTube frontend in your browser
     status         show current state
@@ -418,6 +418,9 @@ HELP = """
   lost your paper? run setup again. it wipes and regenerates.
   find work videos at: https://inv.thepixora.com
 """
+
+
+SUDO_COMMANDS = {"block", "unblock"}
 
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
@@ -430,12 +433,15 @@ def main():
 
     cmd = sys.argv[1]
 
+    if cmd in SUDO_COMMANDS and os.geteuid() != 0:
+        os.execvp("sudo", ["sudo", sys.executable] + sys.argv)
+
     if cmd == "setup":
         cmd_setup()
     elif cmd == "block":
         cmd_block()
-    elif cmd == "unlock":
-        cmd_unlock()
+    elif cmd == "unblock":
+        cmd_unblock()
     elif cmd == "watch":
         cmd_watch(sys.argv[2] if len(sys.argv) > 2 else None)
     elif cmd == "yt":

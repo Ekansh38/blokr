@@ -8,7 +8,7 @@ Brick your laptop. Block distracting sites behind a physical code you keep on pa
 
 ```bash
 git clone https://github.com/ekansh38/blokr.git
-echo 'alias blokr="sudo python3 /path/to/blokr/blokr.py"' >> ~/.zshrc
+echo 'alias blokr="python3 /path/to/blokr/blokr.py"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -37,9 +37,9 @@ blokr block
 ```
 Blocks your configured sites via `/etc/hosts`. No timer, stays locked until you unlock.
 
-### Unlock
+### Unblock
 ```bash
-blokr unlock
+blokr unblock
 ```
 1. Type your code manually from your paper (no paste allowed, detected and rejected)
 2. Sit through a 5-minute countdown with a paragraph on why this matters
